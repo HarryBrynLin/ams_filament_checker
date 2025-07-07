@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bambu Lab AMS Filament Checker</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background-color: #fafafa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #00AE42;
+            background-color: #f0f8f0;
+        }
+        .upload-area.drag-over {
+            border-color: #00AE42;
+            background-color: #e8f5e9;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+        .filament-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .filament-card {
+            background: #f8f8f8;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #e0e0e0;
+            transition: transform 0.2s ease;
+        }
+        .filament-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .holder-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .color-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 15px auto;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .filament-type {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .color-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 5px;
+        }
+        .hex-code {
+            font-size: 12px;
+            color: #888;
+            font-family: monospace;
+        }
+        .empty-slot {
+            opacity: 0.5;
+        }
+        .error {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .info {
+            color: #1976d2;
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .log-info {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .hex-converter {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f0f0f0;
+    border-radius: 8px;
+}
+.converter-input {
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    width: 200px;
+    margin-right: 10px;
+}
+.converter-result {
+    display: inline-block;
+    padding: 10px 20px;
+    background: white;
+    border-radius: 4px;
+    margin-left: 10px;
+    font-family: monospace;
+}
+.filament-card .verified {
+    color: #00AE42;
+    font-weight: 600;
+}
+.filament-card .duplicate-warning {
+    color: #ff9800;
+    font-size: 12px;
+    font-style: italic;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bambu Lab AMS Filament Checker</h1>
+        
+        <div class="upload-area" id="uploadArea">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#00AE42" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+    </svg>
+    <p style="margin-top: 20px; font-size: 18px; color: #666;">Drop your log file here or click to browse</p>
+    <p style="font-size: 14px; color: #999;">Accepts .log or .log.0 files</p>
+    <p style="font-size: 12px; color: #888; margin-top: 10px;">
+        <strong>Windows:</strong> Look for debug_{date}.log.0 in %APPDATA%\BambuStudio\log\<br>
+    </p>
+    <input type="file" id="fileInput" accept=".log,.log.0">
+</div>
+
+        <div id="results" class="results"></div>
+        <div class="hex-converter">
+    <h3>🎨 Hex to RGB Converter</h3>
+    <input type="text" id="hexInput" class="converter-input" placeholder="Enter hex code (e.g., #FF5733)">
+    <button onclick="convertHexToRgb()" style="padding: 10px 20px; background: #00AE42; color: white; border: none; border-radius: 4px; cursor: pointer;">Convert</button>
+    <span id="rgbResult" class="converter-result"></span>
+    <div id="colorSample" style="display: inline-block; width: 50px; height: 50px; border-radius: 4px; margin-left: 10px; border: 2px solid #ddd; vertical-align: middle;"></div>
+</div>
+    </div>
+
+    <script>
+
+        console.log("Version 2.0 - Array-based color database");
+        // Bambu Lab color database from the PDFs
+        
+        const colorDatabase = [
+
+        // PLA Matte colors
+          { hex:  'FFFFFF', name: 'Ivory White', type: 'PLA Matte' },
+            { hex:'CBC6B8', name: 'Bone White', type: 'PLA Matte' },
+           { hex: 'E8DBB7', name: 'Desert Tan', type: 'PLA Matte' },
+           { hex: 'D3B7A7', name: 'Latte Brown', type: 'PLA Matte' },
+           { hex: 'AE835B', name: 'Caramel', type: 'PLA Matte' },
+           { hex: 'B15533', name: 'Terracotta', type: 'PLA Matte' },
+           { hex: '7D6556', name: 'Dark Brown', type: 'PLA Matte' },
+           { hex: '4D3324', name: 'Dark Chocolate', type: 'PLA Matte' },
+          { hex:  'AE96D4', name: 'Lilac Purple', type: 'PLA Matte' },
+          { hex:  'E8AFCF', name: 'Sakura Pink', type: 'PLA Matte' },
+          { hex:  'F99963', name: 'Mandarin Orange', type: 'PLA Matte' },
+          { hex:  'F7D959',name: 'Lemon Yellow', type: 'PLA Matte' },
+          { hex:  '950051', name: 'Plum', type: 'PLA Matte' },
+          { hex:  'DE4343', name: 'Scarlet Red', type: 'PLA Matte' },
+          { hex:  'BB3D43', name: 'Dark Red', type: 'PLA Matte' },
+          { hex:  '68724D', name: 'Dark Green', type: 'PLA Matte' },
+          { hex:  '61C680', name: 'Grass Green', type: 'PLA Matte' },
+         { hex:   'C2E189', name: 'Apple Green', type: 'PLA Matte' },
+         { hex:   'A3D8E1', name: 'Ice Blue', type: 'PLA Matte' },
+          { hex:  '56B7E6', name: 'Sky Blue', type: 'PLA Matte' },
+         { hex:   '0078BF',name: 'Marine Blue', type: 'PLA Matte' },
+          { hex:  '042F56', name: 'Dark Blue', type: 'PLA Matte' },
+         { hex:   '9B9EA0', name: 'Ash Gray', type: 'PLA Matte' },
+         { hex:   '757575', name: 'Nardo Gray', type: 'PLA Matte' },
+         { hex:   '000000', name: 'Charcoal', type: 'PLA Matte' },
+            
+// PLA Basic colors 
+          { hex:  'EC008C', name: 'Magenta', type: 'PLA Basic' },
+          { hex:  'E4BD68', name: 'Gold', type: 'PLA Basic' },
+         { hex:   '3F8E43', name: 'Mistletoe Green', type: 'PLA Basic' },
+          { hex:  'C12E1F', name: 'Red', type: 'PLA Basic' },
+        { hex:    '5E43B7', name: 'Purple', type: 'PLA Basic' },
+         { hex:   'F7E6DE', name: 'Beige', type: 'PLA Basic' },
+         { hex:   'F55A74', name: 'Pink', type: 'PLA Basic' },
+         { hex:   'FEC600', name: 'Sunflower Yellow', type: 'PLA Basic' },
+         { hex:   '847D48', name: 'Bronze', type: 'PLA Basic' },
+         { hex:   '00B1B7', name: 'Turquoise', type: 'PLA Basic' },
+         { hex:   '482960', name: 'Indigo Purple', type: 'PLA Basic' },
+         { hex:   'D1D3D5', name: 'Light Gray', type: 'PLA Basic' },
+         { hex:   'F5547C', name: 'Hot Pink', type: 'PLA Basic' },
+         { hex:   'F4EE2A', name: 'Yellow', type: 'PLA Basic' },
+         { hex:   '6F5034', name: 'Cocoa Brown', type: 'PLA Basic' },
+         { hex:   '0086D6', name: 'Cyan', type: 'PLA Basic' },
+         { hex:   '5B6579', name: 'Blue Grey', type: 'PLA Basic' },
+         { hex:   'A6A9AA',name: 'Silver', type: 'PLA Basic' },
+         { hex:   'FF6A13', name: 'Orange', type: 'PLA Basic' },
+         { hex:   'BECF00',name: 'Bright Green', type: 'PLA Basic' },
+          { hex:  '9D432C', name: 'Brown', type: 'PLA Basic' },
+         { hex:   '0A2989', name: 'Blue', type: 'PLA Basic' },
+         { hex:   '545454', name: 'Dark Gray', type: 'PLA Basic' },
+        { hex:    '8E9089',name: 'Gray', type: 'PLA Basic' },
+        { hex:    'FF9016', name: 'Pumpkin Orange', type: 'PLA Basic' },
+        { hex:    '00AE42', name: 'Bambu Green', type: 'PLA Basic' },
+        { hex:    '9D2235', name: 'Maroon Red', type: 'PLA Basic' },
+         { hex:   '0056B8',name: 'Cobalt Blue', type: 'PLA Basic' },
+
+// PETG HF colors
+         { hex:   'FFD00B', name: 'Yellow', type: 'PETG HF' },
+         { hex:   'F75403',name: 'Orange', type: 'PETG HF' },
+         { hex:   '00AE42', name: 'Green', type: 'PETG HF' },
+         { hex:   'EB3A3A',name: 'Red', type: 'PETG HF' },
+         { hex:   '000000', name: 'Black', type: 'PETG HF' },
+         { hex:   '39541A', name: 'Forest Green', type: 'PETG HF' },
+        { hex:    '002E96', name: 'Blue', type: 'PETG HF' },
+        { hex:    '515151',name: 'Dark Gray', type: 'PETG HF' },
+        { hex:    'FFFFFF',name: 'White', type: 'PETG HF' },
+        { hex:    'F9DFB9', name: 'Cream', type: 'PETG HF' },
+        { hex:    '6EE53C',  name: 'Lime Green', type: 'PETG HF' },
+        { hex:    '1F79E5',  name: 'Lake Blue', type: 'PETG HF' },
+        { hex:    'ADB1B2', name: 'Gray', type: 'PETG HF' },
+        { hex:    '875718',  name: 'Peanut Brown', type: 'PETG HF' },
+
+        // PLA Silk+ colors
+{ hex: 'F4A925', name: 'Gold', type: 'PLA Silk+' },
+{ hex: 'C8C8C8', name: 'Silver', type: 'PLA Silk+' },
+{ hex: '5F6367', name: 'Titan Gray', type: 'PLA Silk+' },
+{ hex: '008BDA', name: 'Blue', type: 'PLA Silk+' },
+{ hex: '8671CB', name: 'Purple', type: 'PLA Silk+' },
+{ hex: 'D02727', name: 'Candy Red', type: 'PLA Silk+' },
+{ hex: '018814', name: 'Candy Green', type: 'PLA Silk+' },
+{ hex: 'BA9594', name: 'Rose Gold', type: 'PLA Silk+' },
+{ hex: 'A8C6EE', name: 'Baby Blue', type: 'PLA Silk+' },
+{ hex: 'F7ADA6', name: 'Pink', type: 'PLA Silk+' },
+{ hex: '96DCB9', name: 'Mint', type: 'PLA Silk+' },
+{ hex: 'F3CFB2', name: 'Champagne', type: 'PLA Silk+' },
+{ hex: 'FFFFFF', name: 'White', type: 'PLA Silk+' },
+
+// PETG Translucent colors
+{ hex: '8E8E8E', name: 'Translucent Gray', type: 'PETG Translucent' },
+{ hex: '61B0FF', name: 'Translucent Light Blue', type: 'PETG Translucent' },
+{ hex: '748C45', name: 'Translucent Olive', type: 'PETG Translucent' },
+{ hex: 'C9A381', name: 'Translucent Brown', type: 'PETG Translucent' },
+{ hex: '77EDD7', name: 'Translucent Teal', type: 'PETG Translucent' },
+{ hex: 'FF911A', name: 'Translucent Orange', type: 'PETG Translucent' },
+{ hex: 'D6ABFF', name: 'Translucent Purple', type: 'PETG Translucent' },
+{ hex: 'F9C1BD', name: 'Translucent Pink', type: 'PETG Translucent' },
+
+// ABS colors
+{ hex: '789D4A', name: 'Olive', type: 'ABS' },
+{ hex: 'FFC72C', name: 'Tangerine Yellow', type: 'ABS' },
+{ hex: '489FDF', name: 'Azure', type: 'ABS' },
+{ hex: '0C2340', name: 'Navy Blue', type: 'ABS' },
+{ hex: 'FFFFFF', name: 'White', type: 'ABS' },
+{ hex: '87909A', name: 'Silver', type: 'ABS' },
+{ hex: 'D32941', name: 'Red', type: 'ABS' },
+{ hex: 'FF6A13', name: 'Orange', type: 'ABS' },
+{ hex: '00AE42', name: 'Bambu Green', type: 'ABS' },
+{ hex: '0A2CA5', name: 'Blue', type: 'ABS' },
+{ hex: 'AF1685', name: 'Purple', type: 'ABS' },
+{ hex: '000000', name: 'Black', type: 'ABS' },
+{ hex: 'DFD1A7', name: 'Beige', type: 'ABS' },
+{ hex: '7248BD', name: 'Lavender', type: 'ABS' },
+
+// PLA Translucent colors
+{ hex: '009FA1', name: 'Teal', type: 'PLA Translucent' },
+{ hex: '96D8AF', name: 'Light Jade', type: 'PLA Translucent' },
+{ hex: '0047BB', name: 'Blue', type: 'PLA Translucent' },
+{ hex: 'F5DBAB', name: 'Mellow Yellow', type: 'PLA Translucent' },
+{ hex: '8344B0', name: 'Purple', type: 'PLA Translucent' },
+{ hex: 'F5B6CD', name: 'Cherry Pink', type: 'PLA Translucent' },
+{ hex: 'F74E02', name: 'Orange', type: 'PLA Translucent' },
+{ hex: 'B8CDE9', name: 'Ice Blue', type: 'PLA Translucent' },
+{ hex: 'B50011', name: 'Red', type: 'PLA Translucent' },
+{ hex: 'B8ACD6', name: 'Lavender', type: 'PLA Translucent' },
+
+// PLA Metal colors
+{ hex: 'B39B84', name: 'Iridium Gold Metallic', type: 'PLA Metal' },
+{ hex: 'AA6443', name: 'Copper Brown Metallic', type: 'PLA Metal' },
+{ hex: '1D7C6A', name: 'Oxide Green Metallic', type: 'PLA Metal' },
+{ hex: '39699E', name: 'Cobalt Blue Metallic', type: 'PLA Metal' },
+{ hex: '43403D', name: 'Iron Gray Metallic', type: 'PLA Metal' },
+
+// PLA Marble colors
+{ hex: 'F7F3F0', name: 'White Marble', type: 'PLA Marble' },
+{ hex: 'AD4E38', name: 'Red Granite', type: 'PLA Marble' },
+
+// PLA Galaxy colors
+{ hex: '684A43', name: 'Brown (Brown base with gold shimmer)', type: 'PLA Galaxy' },
+{ hex: '3B665E', name: 'Green (Green base with gold shimmer)', type: 'PLA Galaxy' },
+{ hex: '424379', name: 'Nebulae (Deep blue base with green shimmer)', type: 'PLA Galaxy' },
+{ hex: '594177', name: 'Purple (Purple base with blue shimmer)', type: 'PLA Galaxy' },
+
+// PLA Sparkle colors
+{ hex: 'CEA629', name: 'Classic Gold Sparkle', type: 'PLA Sparkle' },
+{ hex: '8E9089', name: 'Slate Gray Sparkle', type: 'PLA Sparkle' },
+{ hex: '792B36', name: 'Crimson Red Sparkle', type: 'PLA Sparkle' },
+{ hex: '483D8B', name: 'Royal Purple Sparkle', type: 'PLA Sparkle' },
+{ hex: '3F5443', name: 'Alpine Green Sparkle', type: 'PLA Sparkle' },
+{ hex: '2D2B28', name: 'Onyx Black Sparkle', type: 'PLA Sparkle' },
+
+// PLA Wood colors
+{ hex: '4F3F24', name: 'Black Walnut', type: 'PLA Wood' },
+{ hex: '4C241C', name: 'Rosewood', type: 'PLA Wood' },
+{ hex: '995F11', name: 'Clay Brown', type: 'PLA Wood' },
+{ hex: '918669', name: 'Classic Birch', type: 'PLA Wood' },
+{ hex: 'D6CCA3', name: 'White Oak', type: 'PLA Wood' },
+{ hex: 'C98935', name: 'Ochre Yellow', type: 'PLA Wood' },
+
+// PLA Glow colors
+{ hex: 'A1FFAC', name: 'Glow Green', type: 'PLA Glow' },
+{ hex: 'F8FF80', name: 'Glow Yellow', type: 'PLA Glow' },
+{ hex: 'F17B8F', name: 'Glow Pink', type: 'PLA Glow' },
+{ hex: '7AC0E9', name: 'Glow Blue', type: 'PLA Glow' },
+{ hex: 'FF9D5B', name: 'Glow Orange', type: 'PLA Glow' },
+
+// TPU for AMS colors
+{ hex: 'ED0000', name: 'Red', type: 'TPU for AMS' },
+{ hex: 'F9EF41', name: 'Yellow', type: 'TPU for AMS' },
+{ hex: '5898DD', name: 'Blue', type: 'TPU for AMS' },
+{ hex: '90FF1A', name: 'Neon Green', type: 'TPU for AMS' },
+{ hex: 'FFFFFF', name: 'White', type: 'TPU for AMS' },
+{ hex: '939393', name: 'Gray', type: 'TPU for AMS' },
+{ hex: '000000', name: 'Black', type: 'TPU for AMS' },
+
+// TPU 95A HF colors
+{ hex: 'FFFFFF', name: 'White', type: 'TPU 95A HF' },
+{ hex: 'F3E600', name: 'Yellow', type: 'TPU 95A HF' },
+{ hex: '0072CE', name: 'Blue', type: 'TPU 95A HF' },
+{ hex: 'C8102E', name: 'Red', type: 'TPU 95A HF' },
+{ hex: '898D8D', name: 'Gray', type: 'TPU 95A HF' },
+{ hex: '101820', name: 'Black', type: 'TPU 95A HF' },
+
+// ASA colors
+{ hex: 'F5F1DD', name: 'White', type: 'ASA' },
+
+// PLA-CF colors
+{ hex: '951E23', name: 'Burgundy Red', type: 'PLA-CF' },
+{ hex: '5C9748', name: 'Matcha Green', type: 'PLA-CF' },
+{ hex: '6E88BC', name: 'Jeans Blue', type: 'PLA-CF' },
+{ hex: '2842AD', name: 'Royal Blue', type: 'PLA-CF' },
+{ hex: '69398E', name: 'Iris Purple', type: 'PLA-CF' },
+{ hex: '4D5054', name: 'Lava Gray', type: 'PLA-CF' },
+{ hex: '000000', name: 'Black', type: 'PLA-CF' },
+
+// PETG-CF colors
+{ hex: '9F332A', name: 'Brick Red', type: 'PETG-CF' },
+{ hex: '583061', name: 'Violet Purple', type: 'PETG-CF' },
+{ hex: '324585', name: 'Indigo Blue', type: 'PETG-CF' },
+{ hex: '16B08E', name: 'Malachite Green', type: 'PETG-CF' },
+{ hex: '000000', name: 'Black', type: 'PETG-CF' },
+{ hex: '565656', name: 'Titan Gray', type: 'PETG-CF' }
+    ];
+// Filament type array
+const bambuFilamentTypes = {
+    'GFB00': 'Bambu ABS',
+    'GFB50': 'Bambu ABS-GF',
+    'GFB01': 'Bambu ASA',
+    'GFB02': 'Bambu ASA-Aero',
+    'GFB51': 'Bambu ASA-CF',
+    'GFN03': 'Bambu PA-CF',
+    'GFN05': 'Bambu PA6-GF',
+    'GFN04': 'Bambu PAHT-CF',
+    'GFC00': 'Bambu PC',
+    'GFC01': 'Bambu PC-FR',
+    'GFG02': 'Bambu PETG HF',
+    'GFG00': 'Bambu PETG Basic',
+    'GFG01': 'Bambu PETG Translucent',
+    'GFG50': 'Bambu PETG-CF',
+    'GFG50': 'Bambu PLA Aero',
+    'GFA00': 'Bambu PLA Basic',
+    'GFA13': 'Bambu PLA Dynamic',
+    'GFA15': 'Bambu PLA Galaxy',
+    'GFA12': 'Bambu PLA Glow',
+    'GFA07': 'Bambu PLA Marble',
+    'GFA01': 'Bambu PLA Matte',
+    'GFA02': 'Bambu PLA Metal',
+    'GFA05': 'Bambu PLA Silk',
+    'GFA06': 'Bambu PLA Silk+',
+    'GFA08': 'Bambu PLA Sparkle',
+    'GFA17': 'Bambu PLA Translucent',
+    'GFA16': 'Bambu PLA Wood',
+    'GFA50': 'Bambu PLA-CF',
+    'GFU00': 'Bambu TPU 95A HF',
+    'GFU02': 'Bambu TPU for AMS'
+  
+};
+        // File handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const resultsDiv = document.getElementById('results');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file && (file.name.endsWith('.log') || file.name.endsWith('.log.0'))) {
+                processFile(file);
+            }
+        });
+        
+     fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        processFile(file);
+        // Reset the input so the same file can be selected again
+        fileInput.value = '';
+    }
+});
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                analyzeLog(content, file.name);
+            };
+            reader.readAsText(file);
+        }
+
+        function analyzeLog(content, filename) {
+            const lines = content.split('\n');
+            const filamentData = {
+                'Ext': null,
+                'A1': null,
+                'A2': null,
+                'A3': null,
+                'A4': null
+            };
+            
+            // Find all relevant lines and keep only the latest for each holder
+            const latestEntries = {};
+            
+            lines.forEach(line => {
+                // Match lines with filament data
+                const match = line.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*build_filament_ams_list: name (\w+) setting_id (\w*) type (\w*) color (\w*)/);
+                
+                if (match) {
+                    const [_, timestamp, holder, settingId, type, color] = match;
+                    
+                    // Only process if we have actual data (not empty fields)
+                    if (settingId && type && color && color.length >= 6) {
+                        if (!latestEntries[holder] || timestamp > latestEntries[holder].timestamp) {
+                            latestEntries[holder] = {
+                                timestamp,
+                                settingId,
+                                type,
+                                color: color.toUpperCase()
+                            };
+                        }
+                    }
+                }
+            });
+            
+            // Convert to our filamentData structure
+            Object.keys(filamentData).forEach(holder => {
+                if (latestEntries[holder]) {
+                    filamentData[holder] = latestEntries[holder];
+                }
+            });
+            
+            displayResults(filamentData, filename, latestEntries);
+        }
+
+function getColorInfo(hexCode, logType) {
+    const cleanHex = hexCode.replace(/FF$/i, '');
+    
+    // Find all matches in the array
+    const matches = colorDatabase.filter(entry => entry.hex === cleanHex);
+    
+    if (matches.length === 0) {
+        return {
+            name: 'Unknown Color',
+            type: 'Unknown',
+            verified: false
+        };
+    }
+    
+    // If we have a log type, try to find the best match
+    if (logType && matches.length > 0) {
+        // First try exact type match
+        const exactMatch = matches.find(match => 
+            match.type.toUpperCase().includes(logType.toUpperCase())
+        );
+        
+        if (exactMatch) {
+            return {
+                ...exactMatch,
+                verified: true,
+                duplicate: matches.length > 1
+            };
+        }
+    }
+    
+    // If only one match, return it
+    if (matches.length === 1) {
+        return {
+            ...matches[0],
+            verified: false
+        };
+    }
+    
+    // Multiple matches with no clear winner
+    const types = [...new Set(matches.map(m => m.type))];
+    return {
+        name: matches[0].name,
+        type: `Multiple types: ${types.join(', ')}`,
+        verified: false,
+        duplicate: true
+    };
+}
+
+        function displayResults(filamentData, filename, latestEntries) {
+            let html = `
+                <div class="info">
+                    <strong>📄 File analyzed:</strong> ${filename}<br>
+                    <strong>🔍 Found filament data for:</strong> ${Object.keys(latestEntries).length} holders
+                </div>
+                
+                <h2>Current Filament Configuration</h2>
+                <div class="filament-grid">
+            `;
+            
+            Object.entries(filamentData).forEach(([holder, data]) => {
+                
+                if (data) {
+    const hexForDisplay = data.color.replace(/FF$/i, '');
+    
+    // Check all matches for this hex
+    const allMatches = colorDatabase.filter(entry => entry.hex === hexForDisplay);
+    
+    let colorName = 'Unknown Color';
+    let databaseType = '';
+    
+    if (allMatches.length === 1) {
+        colorName = allMatches[0].name;
+        databaseType = allMatches[0].type;
+    } else if (allMatches.length > 1) {
+        colorName = allMatches[0].name;
+        const types = [...new Set(allMatches.map(m => m.type))];
+        databaseType = `Multiple types: ${types.join(', ')}`;
+    }
+    
+    // Get the specific Bambu filament type from setting_id
+    const bambuType = bambuFilamentTypes[data.settingId] || `Unknown (${data.settingId})`;
+    
+    html += `
+        <div class="filament-card">
+            <div class="holder-name">${holder}</div>
+            <div class="color-preview" style="background-color: #${hexForDisplay};"></div>
+            <div class="filament-type">${data.type}</div>
+            <div class="color-name">${colorName}</div>
+            <div style="font-size: 13px; color: #666; margin: 5px 0;">${bambuType}</div>
+            <div class="hex-code">#${hexForDisplay}</div>
+        </div>
+    `;
+}
+
+
+                else {
+                    html += `
+                        <div class="filament-card empty-slot">
+                            <div class="holder-name">${holder}</div>
+                            <div class="color-preview" style="background-color: #e0e0e0;"></div>
+                            <div class="filament-type">Empty</div>
+                            <div class="color-name">No Filament</div>
+                            <div class="hex-code">-</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            html += '</div>';
+            
+            // Add log info
+            if (Object.keys(latestEntries).length > 0) {
+                const latestTimestamp = Object.values(latestEntries).reduce((latest, entry) => {
+                    return entry.timestamp > latest ? entry.timestamp : latest;
+                }, '');
+                
+                html += `
+                    <div class="log-info">
+                        <strong>Latest entry timestamp:</strong> ${latestTimestamp}
+                    </div>
+                `;
+            }
+            
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+        function convertHexToRgb() {
+    const hexInput = document.getElementById('hexInput').value.trim();
+    const rgbResult = document.getElementById('rgbResult');
+    const colorSample = document.getElementById('colorSample');
+    
+    // Remove # if present
+    let hex = hexInput.replace('#', '');
+    
+    // Validate hex
+    if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+        rgbResult.textContent = 'Invalid hex code';
+        colorSample.style.backgroundColor = '#ffffff';
+        return;
+    }
+    
+    // Convert to RGB
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    rgbResult.textContent = `RGB(${r}, ${g}, ${b})`;
+    colorSample.style.backgroundColor = `#${hex}`;
+}
+
+// Also allow Enter key to trigger conversion
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('hexInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            convertHexToRgb();
+        }
+    });
+});
+    </script>
+</body>
+</html>
